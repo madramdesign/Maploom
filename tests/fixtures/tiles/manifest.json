@@ -1,0 +1,28 @@
+{
+  "info": {
+    "provider": "openfreemap",
+    "dataVersion": "20261115_080022_pt",
+    "attribution": "© OpenStreetMap contributors",
+    "maxZoom": 14
+  },
+  "locations": {
+    "clifton": {
+      "frame": {
+        "center": {
+          "lat": 40.8651,
+          "lon": -74.1585
+        },
+        "widthM": 1200,
+        "heightM": 1600
+      },
+      "range": {
+        "z": 14,
+        "minX": 4816,
+        "maxX": 4817,
+        "minY": 6150,
+        "maxY": 6151,
+        "count": 4
+      }
+    }
+  }
+}
