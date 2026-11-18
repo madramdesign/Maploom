@@ -41,7 +41,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="relative mx-auto w-full max-w-[460px] rise">
-            <div className="absolute -top-5 -right-3 z-10 w-[46%] rotate-6 overflow-hidden rounded-xl border-2 border-ink bg-white shadow-card">
+            <div className="absolute -bottom-6 -left-4 z-10 w-[40%] -rotate-6 sm:-left-8 overflow-hidden rounded-xl border-2 border-ink bg-white shadow-card">
               <img src="/styles/hero-watercolor.svg" alt="" width={300} height={400} className="block h-auto w-full" />
             </div>
             <div className="-rotate-2 overflow-hidden rounded-2xl border-2 border-ink bg-white shadow-[0_18px_40px_-18px_rgba(47,52,71,.55)]">

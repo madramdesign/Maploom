@@ -1,5 +1,15 @@
 # Map data architecture (decision document)
 
+> **Implementation status (authoritative, updated with the code).**
+> The shipped `FeatureSource` is **OpenMapTiles-schema vector tiles from OpenFreeMap**
+> (`packages/geo/src/tiles.ts`, `tile-source.ts`), not Overpass. Reason: the public Overpass
+> instances reset or time out connections from cloud IP ranges (observed during development
+> and consistent with the research below), while versioned vector tiles are fast, cacheable
+> and reproducible. Wherever this document says "Overpass" for feature extraction, read it
+> as an evaluated option that is **not implemented**; see `docs/DECISIONS.md` D-003 and
+> `docs/architecture/MAP_PIPELINE.md`. Geocoding is implemented as described (Photon for
+> suggestions, Nominatim fallback), with public instances for development only.
+
 Status: proposed, 2026-11-18. Evidence, prices, URLs: `docs/research/MAP_DATA.md`. Not legal advice.
 Several limits were confirmed only from search extracts (research doc, sections 0 and 11).
 

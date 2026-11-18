@@ -1,5 +1,14 @@
 # Print-on-demand: research and decision
 
+> **Implementation status (authoritative, updated with the code).** Only the provider ports and
+> mock providers exist today: `PrintProvider`, `PaymentProvider`, `MockPrintProvider`,
+> `MockPaymentProvider` and order records in `packages/server/src/commerce.ts`. No real print
+> or payment vendor is integrated, and checkout runs in clearly-labelled test mode. The
+> interface in the code is deliberately smaller than the proposal below (supports,
+> validateArtwork, submitOrder, getStatus, cancel); catalogue sync, quotes and webhooks are
+> roadmap items. Product sizes, DPI, bleed and (placeholder) prices live in
+> `packages/core/src/products.ts`. Play mats are listed as "coming soon" (not orderable).
+
 Status: research draft, 2026-11-18. Owner: architecture. Review before any provider contract or public price list.
 
 ## 0. How to read this document
