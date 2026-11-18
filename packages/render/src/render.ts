@@ -644,7 +644,7 @@ export function wrapSvg(inner: string, design: Design, size: { width: number; he
   // Full precision here: strips must line up to the pixel.
   const vb = `${-bleed} ${-bleed + y0} ${fullW} ${y1 - y0}`;
   const dims = opts.pixelWidth ? ` width="${opts.pixelWidth}" height="${opts.pixelHeight ?? Math.round((opts.pixelWidth * (y1 - y0)) / fullW)}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${dims} preserveAspectRatio="none"><rect x="${-bleed}" y="${-bleed}" width="${fullW}" height="${fullH}" fill="${style.colors.paper}"/><svg x="0" y="0" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.width} ${size.height}" overflow="hidden">${inner}</svg></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${dims}${opts.pixelHeight ? ' preserveAspectRatio="none"' : ''}><rect x="${-bleed}" y="${-bleed}" width="${fullW}" height="${fullH}" fill="${style.colors.paper}"/><svg x="0" y="0" width="${size.width}" height="${size.height}" viewBox="0 0 ${size.width} ${size.height}" overflow="hidden">${inner}</svg></svg>`;
 }
 
 export interface RenderResult {

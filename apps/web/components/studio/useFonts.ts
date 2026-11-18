@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { StyleId } from '@maploom/core';
+import { asset } from './api';
 import { STYLES, loadFontsFromUrl, type FontBook, type FontKey } from '@maploom/render';
 
 const book: Partial<FontBook> = {};
@@ -11,7 +12,7 @@ function ensure(key: FontKey): Promise<void> {
   if (book[key]) return Promise.resolve();
   let p = pending.get(key);
   if (!p) {
-    p = loadFontsFromUrl('/fonts', [key]).then((loaded) => {
+    p = loadFontsFromUrl(asset('/fonts'), [key]).then((loaded) => {
       Object.assign(book, loaded);
     });
     pending.set(key, p);

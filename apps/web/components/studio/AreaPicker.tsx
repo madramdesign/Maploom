@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LngLat } from '@maploom/core';
 import { zoomForWidth } from '@maploom/geo';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { asset } from './api';
 
 interface Props {
   home: LngLat;
@@ -62,7 +63,7 @@ export function AreaPicker({ home, center, widthM, heightM, onChange }: Props) {
       try {
         const maplibregl = await import('maplibre-gl');
         if (cancelled || !box.current) return;
-        maplibregl.setWorkerUrl('/vendor/maplibre-gl-worker.mjs');
+        maplibregl.setWorkerUrl(asset('/vendor/maplibre-gl-worker.mjs'));
         const m = new maplibregl.Map({
           container: box.current.querySelector<HTMLDivElement>('[data-map]')!,
           style: STYLE_URL,

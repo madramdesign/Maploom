@@ -6,6 +6,7 @@ Read `docs/ARCHITECTURE.md` and `docs/DECISIONS.md` before changing structure.
 ## Commands
 - `npm run dev` (add `NODE_USE_ENV_PROXY=1` behind an HTTPS proxy) · `npm run build`
 - `npm test` · `npm run e2e` · `npm run lint` · `npm run typecheck`
+- Static demo (GitHub Pages): `NEXT_PUBLIC_BASE_PATH=/Maploom npm run build:demo`, preview with `node scripts/serve-demo.mjs`
 - Offline map data: `MAPLOOM_FIXTURE_TILES=tests/fixtures/tiles`
 - After changing renderer output: `npx tsx scripts/build-style-previews.ts` (regenerates `apps/web/public/styles/*.svg`)
 
@@ -34,6 +35,9 @@ Read `docs/ARCHITECTURE.md` and `docs/DECISIONS.md` before changing structure.
 - The dev job queue lives on `globalThis`; restart `npm run dev` after editing job handlers.
 - MapLibre needs its worker served from `/vendor` (copied by `scripts/copy-assets.mjs`) and
   forces `position: relative` on its container.
+- Two backends share one UI: `serverApi` and `staticApi` in `apps/web/components/studio/api.ts`. Add a
+  capability to both (or mark it unavailable in the demo). Public asset URLs must go through `asset()`.
+- Server-only pages are `page.dyn.tsx` and API routes are `route.ts`; the static build only picks up `.tsx`.
 - Tailwind 4: `@apply` cannot reference our own component classes.
 
 ## Docs to keep in sync

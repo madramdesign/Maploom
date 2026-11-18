@@ -2,6 +2,10 @@ import Link from 'next/link';
 import { PRODUCTS, formatMoney } from '@maploom/core';
 import { STYLE_LIST } from '@maploom/render';
 import { Logo, SiteFooter } from '@/components/Brand';
+import { DemoBanner } from '@/components/DemoBanner';
+
+const STATIC = process.env.NEXT_PUBLIC_STATIC === '1';
+const asset = (p: string) => `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}${p}`;
 
 const STEPS = [
   { n: '1', title: 'Tell us where', body: 'A home address, a town, grandma’s street, the place you met — anywhere that matters.' },
@@ -13,6 +17,7 @@ export default function Landing() {
   const fromPrice = Math.min(...PRODUCTS.flatMap((p) => p.variants.map((v) => v.priceCents)));
   return (
     <div className="min-h-full">
+      <DemoBanner />
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <Logo />
         <nav className="flex items-center gap-1 sm:gap-2">
@@ -42,10 +47,10 @@ export default function Landing() {
           </div>
           <div className="relative mx-auto w-full max-w-[460px] rise">
             <div className="absolute -bottom-6 -left-4 z-10 w-[40%] -rotate-6 sm:-left-8 overflow-hidden rounded-xl border-2 border-ink bg-white shadow-card">
-              <img src="/styles/hero-watercolor.svg" alt="" width={300} height={400} className="block h-auto w-full" />
+              <img src={asset('/styles/hero-watercolor.svg')} alt="" width={300} height={400} className="block h-auto w-full" />
             </div>
             <div className="-rotate-2 overflow-hidden rounded-2xl border-2 border-ink bg-white shadow-[0_18px_40px_-18px_rgba(47,52,71,.55)]">
-              <img src="/styles/hero-playful.svg" alt="An illustrated map of a real neighborhood, titled “Emma’s Neighborhood”" width={750} height={1000} className="block h-auto w-full" />
+              <img src={asset('/styles/hero-playful.svg')} alt="An illustrated map of a real neighborhood, titled “Emma’s Neighborhood”" width={750} height={1000} className="block h-auto w-full" />
             </div>
           </div>
         </section>
@@ -70,7 +75,7 @@ export default function Landing() {
           <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3">
             {STYLE_LIST.map((s) => (
               <figure key={s.id} className="card overflow-hidden">
-                <img src={`/styles/${s.id}.svg`} alt={`${s.name} style sample`} loading="lazy" width={400} height={500} className="block aspect-[4/5] w-full object-cover" />
+                <img src={asset(`/styles/${s.id}.svg`)} alt={`${s.name} style sample`} loading="lazy" width={400} height={500} className="block aspect-[4/5] w-full object-cover" />
                 <figcaption className="px-4 py-3">
                   <div className="font-display text-lg font-semibold">{s.name}</div>
                   <div className="text-sm text-ink-soft">{s.tagline}</div>
@@ -96,10 +101,12 @@ export default function Landing() {
             </div>
             <div className="mt-12 flex flex-col items-start gap-5 rounded-2xl border-2 border-ink bg-white p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
               <div>
-                <h3 className="text-2xl font-semibold">Your address stays yours</h3>
+                <h3 className="text-2xl font-semibold">{STATIC ? 'Private by design' : 'Your address stays yours'}</h3>
                 <p className="mt-1 max-w-2xl text-ink-soft">
-                  We look up the place you type, and that’s it. Nothing is stored on our servers unless you press Save, addresses never appear in links, and you can delete everything in one click.{' '}
-                  <Link href="/privacy" className="font-bold text-ink underline">How we handle your data</Link>
+                  {STATIC
+                    ? 'This demo runs entirely in your browser: there is no Maploom server, and your design never leaves your device. Address searches go directly to public OpenStreetMap search services. '
+                    : 'We look up the place you type, and that’s it. Nothing is stored on our servers unless you press Save, addresses never appear in links, and you can delete everything in one click. '}
+                  <Link href="/privacy" className="font-bold text-ink underline">How your data is handled</Link>
                 </p>
               </div>
               <Link href="/create" className="btn-primary shrink-0">Start designing</Link>

@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { CATEGORY_GROUPS, PERSONAL_PLACE_PRESETS, clampText, type IconId } from '@maploom/core';
 import { COVERAGE_PRESETS, DEMO_LOCATIONS, METERS_PER_MILE } from '@maploom/geo';
 import { STYLES } from '@maploom/render';
+import { STATIC, asset } from './api';
 import { SHAPES, STYLE_ORDER, useStudio } from './store';
 import { Field, IconPicker, MapIcon, Notice, PlaceSearch, Toggle } from './ui';
 
@@ -51,7 +52,7 @@ export function LocationStep() {
           <rect x="5" y="11" width="14" height="9" rx="2" />
           <path d="M8 11V8a4 4 0 0 1 8 0v3" />
         </svg>
-        We only use your address to find the spot on the map. It isn’t stored on our servers unless you choose to save your design.
+        {STATIC ? 'Demo: your search goes directly from your browser to public OpenStreetMap search services. Nothing is stored by Maploom — or pick a sample below instead.' : 'We only use your address to find the spot on the map. It isn’t stored on our servers unless you choose to save your design.'}
       </p>
     </div>
   );
@@ -226,7 +227,7 @@ export function StyleStep() {
           const on = styleId === id;
           return (
             <button key={id} role="radio" aria-checked={on} data-testid={`style-${id}`} onClick={() => edit((d) => void (d.styleId = id))} className={`overflow-hidden rounded-2xl border-2 bg-white text-left transition ${on ? 'border-ink shadow-pop' : 'border-line hover:border-ink/40'}`}>
-              <img src={`/styles/${id}.svg`} alt="" loading="lazy" className="block aspect-[4/5] w-full object-cover" />
+              <img src={asset(`/styles/${id}.svg`)} alt="" loading="lazy" className="block aspect-[4/5] w-full object-cover" />
               <span className="flex items-start justify-between gap-2 px-3 py-2.5 sm:px-4">
                 <span>
                   <span className="block font-display text-lg leading-tight font-semibold">{s.name}</span>

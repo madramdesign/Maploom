@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { STYLES } from '@maploom/render';
 import type { StyleId } from '@maploom/core';
-import { api, type ProjectSummary } from '@/components/studio/api';
+import { api, asset, type ProjectSummary } from '@/components/studio/api';
 
 export function ProjectList() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -38,7 +38,7 @@ export function ProjectList() {
         <ul className="grid gap-3 sm:grid-cols-2">
           {projects.map((p) => (
             <li key={p.id} className="card flex items-center gap-4 p-4">
-              <img src={`/styles/${p.styleId}.svg`} alt="" className="h-20 w-16 rounded-md border border-line object-cover" />
+              <img src={asset(`/styles/${p.styleId}.svg`)} alt="" className="h-20 w-16 rounded-md border border-line object-cover" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-display text-lg font-semibold">{p.name}</div>
                 <div className="text-sm text-ink-soft">{STYLES[p.styleId as StyleId]?.name ?? p.styleId} · saved {new Date(p.updatedAt).toLocaleDateString()}</div>
@@ -53,7 +53,7 @@ export function ProjectList() {
       )}
       <div className="mt-10 rounded-2xl border border-line bg-cream p-5">
         <h2 className="text-lg font-semibold">Your data</h2>
-        <p className="mt-1 text-sm text-ink-soft">Remove every saved map, every download and the anonymous cookie that links this browser to them.</p>
+        <p className="mt-1 text-sm text-ink-soft">Remove every saved map and everything else this site has stored for this browser.</p>
         <button className="btn-secondary mt-3 text-coral-dark" onClick={wipe} data-testid="delete-everything">Delete everything</button>
       </div>
     </div>

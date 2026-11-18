@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { findVariant, formatMoney, quote } from '@maploom/core';
-import { ApiError, api, waitForJob } from './api';
+import { ApiError, STATIC, api, waitForJob } from './api';
 import { artworkSvg } from './MapCanvas';
 import { Mockup } from './Mockup';
 import { StepHeading } from './steps';
@@ -78,12 +78,59 @@ export function PreviewStep() {
   );
 }
 
+function triggerDownload(href: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Demo build: rasterise in the browser. Canvas limits make this unsuitable for full print sizes. */
+async function exportInBrowser(svg: string, format: 'png' | 'svg', longEdge: number, aspect: number): Promise<{ width: number; height: number; bytes: number }> {
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+  const width = Math.round(aspect >= 1 ? longEdge : longEdge * aspect);
+  const height = Math.round(aspect >= 1 ? longEdge / aspect : longEdge);
+  if (format === 'svg') {
+    const url = URL.createObjectURL(svgBlob);
+    triggerDownload(url, 'maploom-map.svg');
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    return { width, height, bytes: svgBlob.size };
+  }
+  const url = URL.createObjectURL(svgBlob);
+  try {
+    const img = new Image();
+    img.decoding = 'async';
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('image'));
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas');
+    ctx.drawImage(img, 0, 0, width, height);
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!png) throw new Error('encode');
+    const out = URL.createObjectURL(png);
+    triggerDownload(out, 'maploom-map.png');
+    setTimeout(() => URL.revokeObjectURL(out), 10_000);
+    return { width, height, bytes: png.size };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 type Busy = { kind: string; progress: number; stage: string } | null;
 
 export function FinishStep() {
   const s = useStudio();
   const { design, geo } = s;
   const url = useArtworkUrl();
+  const fonts = useFonts(design.styleId);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -98,16 +145,20 @@ export function FinishStep() {
     setMessage(null);
     setBusy({ kind, progress: 0.02, stage: 'Getting ready' });
     try {
-      const { jobId } = await api.startExport({ design, geographyKey: geo.key, preset, format });
-      const result = await waitForJob<{ downloadUrl: string; width: number; height: number; bytes: number }>(jobId, (j) => setBusy({ kind, progress: Math.max(0.02, j.progress), stage: j.stage ?? 'Drawing' }));
-      const a = document.createElement('a');
-      a.href = result.downloadUrl;
-      a.download = '';
-      a.dataset.testid = 'download-link';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setMessage(`Your file is ready (${result.width} × ${result.height} px, ${(result.bytes / 1e6).toFixed(1)} MB). The download should start on its own.`);
+      let result: { width: number; height: number; bytes: number };
+      if (STATIC) {
+        if (!fonts) throw new ApiError('EXPORT_FAILED', "We couldn't prepare your file. Please try again.");
+        setBusy({ kind, progress: 0.5, stage: 'Drawing' });
+        result = await exportInBrowser(artworkSvg(geo, design, fonts), format, preset === 'print' ? 6000 : 2400, design.frame.widthM / design.frame.heightM).catch(() => {
+          throw new ApiError('EXPORT_FAILED', "We couldn't prepare your file. Please try again.");
+        });
+      } else {
+        const { jobId } = await api.startExport({ design, geographyKey: geo.key, preset, format });
+        const done = await waitForJob<{ downloadUrl: string; width: number; height: number; bytes: number }>(jobId, (j) => setBusy({ kind, progress: Math.max(0.02, j.progress), stage: j.stage ?? 'Drawing' }));
+        triggerDownload(done.downloadUrl, '');
+        result = done;
+      }
+      setMessage(format === 'svg' ? `Your vector file is ready (${(result.bytes / 1e6).toFixed(1)} MB) — it can be printed at any size. The download should start on its own.` : `Your file is ready (${result.width} × ${result.height} px, ${(result.bytes / 1e6).toFixed(1)} MB). The download should start on its own.`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "We couldn't prepare your file. Please try again.");
     } finally {
@@ -155,7 +206,7 @@ export function FinishStep() {
 
         <section className="card p-5">
           <h2 className="text-xl font-semibold">Save your design</h2>
-          <p className="mt-1 mb-3 text-sm text-ink-soft">No account needed. Saving stores your design (encrypted) on our servers so you can reopen it from this browser. Until you save, it only lives on this device.</p>
+          <p className="mt-1 mb-3 text-sm text-ink-soft">{STATIC ? 'In this demo your design is saved in this browser only — nothing is sent to a server. Clearing your browser data removes it.' : 'No account needed. Saving stores your design (encrypted) on our servers so you can reopen it from this browser. Until you save, it only lives on this device.'}</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="flex-1"><Field label="Name" value={s.projectName || design.title.title} max={80} testId="project-name" onChange={(v) => useStudio.setState({ projectName: v })} /></div>
             <button className="btn-primary" data-testid="save-project" disabled={saving} onClick={save}>{saving ? 'Saving…' : s.projectId ? 'Save changes' : 'Save'}</button>
@@ -165,7 +216,7 @@ export function FinishStep() {
 
         <section className="card p-5">
           <h2 className="text-xl font-semibold">Download</h2>
-          <p className="mt-1 mb-3 text-sm text-ink-soft">Files stay available for 24 hours. Map data © OpenStreetMap contributors — the small credit line on the artwork needs to stay.</p>
+          <p className="mt-1 mb-3 text-sm text-ink-soft">{STATIC ? 'Made right here in your browser.' : 'Files stay available for 24 hours.'} Map data © OpenStreetMap contributors — the small credit line on the artwork needs to stay.</p>
           {busy ? (
             <div data-testid="export-progress">
               <div className="mb-1 flex justify-between text-sm font-bold"><span>{busy.stage}</span><span>{Math.round(busy.progress * 100)}%</span></div>
@@ -174,7 +225,7 @@ export function FinishStep() {
           ) : (
             <div className="grid gap-2 sm:grid-cols-3">
               <button className="btn-secondary h-auto flex-col py-2.5" data-testid="download-preview" onClick={() => run('preview', 'preview', 'png')}><span>Preview image</span><span className="text-[12px] font-semibold text-ink-soft">PNG · for sharing</span></button>
-              <button className="btn-secondary h-auto flex-col py-2.5" data-testid="download-print" onClick={() => run('print', 'print', 'png')}><span>Print-ready file</span><span className="text-[12px] font-semibold text-ink-soft">PNG · {px.w} × {px.h} px · {variant.dpi} DPI</span></button>
+              <button className="btn-secondary h-auto flex-col py-2.5" data-testid="download-print" onClick={() => run('print', 'print', 'png')}><span>{STATIC ? 'Large image' : 'Print-ready file'}</span><span className="text-[12px] font-semibold text-ink-soft">{STATIC ? 'PNG · large (6000 px)' : `PNG · ${px.w} × ${px.h} px · ${variant.dpi} DPI`}</span></button>
               <button className="btn-secondary h-auto flex-col py-2.5" data-testid="download-svg" onClick={() => run('svg', 'print', 'svg')}><span>Vector file</span><span className="text-[12px] font-semibold text-ink-soft">SVG · any size</span></button>
             </div>
           )}
@@ -191,7 +242,9 @@ export function FinishStep() {
               <div className="text-[12px] text-ink-soft">{q.shippingCents ? `incl. ${formatMoney(q.shippingCents)} shipping` : 'free shipping'}</div>
             </div>
           </div>
-          {product.orderable ? (
+          {STATIC ? (
+            <p className="mt-3 rounded-xl bg-sun/40 px-3 py-2 text-sm font-semibold">Ordering isn’t available in this demo, and prices are placeholders. The vector file above can be printed at any size.</p>
+          ) : product.orderable ? (
             <>
               <button className="btn-primary mt-4 w-full" data-testid="order" onClick={order}>Place a test order</button>
               <p className="mt-2 text-[13px] text-ink-soft">Checkout and printing aren’t switched on in this preview build. This records a test order only — you won’t be charged.</p>

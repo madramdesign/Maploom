@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 
 const dev = process.env.NODE_ENV !== 'production';
+// Static demo build (GitHub Pages): no server, no API routes. See docs/DECISIONS.md D-018.
+const isStatic = process.env.NEXT_PUBLIC_STATIC === '1';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
 const tiles = 'https://tiles.openfreemap.org';
 
 // Tight CSP: scripts and styles only from us; map tiles from the configured tile host.
@@ -22,8 +25,14 @@ const config: NextConfig = {
   transpilePackages: ['@maploom/core', '@maploom/geo', '@maploom/render', '@maploom/server'],
   serverExternalPackages: ['@electric-sql/pglite', '@resvg/resvg-js', 'pg'],
   poweredByHeader: false,
-  async headers() {
-    return [
+  // Server-only pages are named *.dyn.tsx and API routes are route.ts; the static build only sees .tsx pages.
+  pageExtensions: isStatic ? ['tsx'] : ['dyn.tsx', 'tsx', 'ts'],
+  ...(isStatic ? { output: 'export' as const, basePath, images: { unoptimized: true }, trailingSlash: true } : {}),
+  ...(isStatic ? {} : { headers })
+};
+
+async function headers() {
+  return [
       {
         source: '/:path*',
         headers: [
@@ -35,7 +44,6 @@ const config: NextConfig = {
         ],
       },
     ];
-  },
-};
+}
 
 export default config;

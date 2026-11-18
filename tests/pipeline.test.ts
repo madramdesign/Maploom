@@ -78,6 +78,8 @@ describe('geographic data → illustrated map', () => {
       // Element-level opacity forces offscreen layers and crashes resvg 2.6 on strips; only fill-/stroke-opacity are allowed.
       expect(svg).not.toMatch(/[\s"]opacity=/);
       expect(svg).toContain(STYLES[styleId].colors.land);
+      // Only print strips may stretch; a normal SVG must keep its aspect ratio wherever it is shown.
+      expect(svg).not.toContain('preserveAspectRatio="none"');
       expect(designSchema.safeParse(d).success).toBe(true);
     }
   });

@@ -22,6 +22,18 @@ illustrated map in six styles → visual editor → product mockups → save →
 | Admin | ✅ basic | Projects, jobs, failed jobs + retry, exports, orders + status changes, API usage, retention sweep |
 | Tests | ✅ | 45 unit/integration (offline fixtures) + e2e journey on desktop and mobile |
 
+## Static demo (GitHub Pages)
+
+`npm run build:demo` produces a browser-only build in `apps/web/out`; pushing to `main`
+publishes it via `.github/workflows/pages.yml` (Pages must be enabled with source
+"GitHub Actions"). Verified locally from a `/Maploom` sub-path: search, area, generate,
+edit, preview, save (localStorage), PNG and SVG download, reopen.
+
+Differences from the server app: the browser talks to public OSM services directly
+(the address a visitor types is sent to Photon/Nominatim — disclosed in the banner and on
+`/privacy`); saves are local to the browser; PNG export is canvas-based (2400 px / 6000 px),
+SVG is the print deliverable; no ordering, admin, encryption-at-rest or security headers.
+
 ## Deliberately stubbed (ports exist, vendors do not)
 
 | Area | State |

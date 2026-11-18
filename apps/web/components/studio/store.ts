@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 import { PRODUCTS, clampText, type Design, type Geography, type IconId, type Landmark, type LngLat, type Orientation, type StyleId } from '@maploom/core';
 import { COVERAGE_PRESETS, makeFrame } from '@maploom/geo';
 import { createDesign, suggestLandmarks } from '@maploom/render';
-import { ApiError, api, waitForJob } from './api';
+import { ApiError, api } from './api';
 
 export const STEPS = [
   { id: 'location', label: 'Place' },
@@ -238,13 +238,9 @@ export const useStudio = create<StudioState>()(
           const run = ++generateRun;
           set({ geoStatus: { state: 'loading', progress: 0.02, stage: 'Finding your streets' }, geoFrameSig: sig, geo: null });
           try {
-            const { jobId } = await api.startGeography(s.design.frame);
-            const result = await waitForJob<{ geographyKey: string }>(jobId, (j) => {
-              if (run === generateRun) set({ geoStatus: { state: 'loading', progress: Math.max(0.05, j.progress * 0.9), stage: j.stage ?? 'Finding your streets' } });
+            const geo = await api.buildGeography(s.design.frame, (progress, stage) => {
+              if (run === generateRun) set({ geoStatus: { state: 'loading', progress, stage } });
             });
-            if (run !== generateRun) return;
-            set({ geoStatus: { state: 'loading', progress: 0.95, stage: 'Drawing your map' } });
-            const geo = await api.geography(result.geographyKey);
             if (run !== generateRun) return;
             set((cur) => {
               const design = clone(cur.design);

@@ -27,6 +27,7 @@ Fully offline: `MAPLOOM_FIXTURE_TILES=tests/fixtures/tiles npm run dev` and pick
 |---|---|
 | `npm run dev` | Web app + API + in-process job worker |
 | `npm run build` / `npm start` | Production build / server |
+| `npm run build:demo` | Static, browser-only demo for GitHub Pages (`apps/web/out`); preview with `node scripts/serve-demo.mjs` |
 | `npm run worker` | Standalone job worker (needs `DATABASE_URL`) |
 | `npm test` | Unit + integration tests (Vitest, offline) |
 | `npm run e2e` | End-to-end journey on desktop + mobile (Playwright, offline) |

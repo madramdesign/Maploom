@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Logo } from '@/components/Brand';
+import { DemoBanner } from '@/components/DemoBanner';
+import { asset } from './api';
 import { Editor } from './Editor';
 import { FinishStep, PreviewStep } from './Finish';
 import { AreaStep, GenerateStep, LocationStep, PersonalizeStep, PlacesStep, StyleStep } from './steps';
@@ -22,7 +24,7 @@ export function Studio() {
     setMounted(true);
     const id = new URLSearchParams(window.location.search).get('project');
     if (id) {
-      window.history.replaceState(null, '', '/create');
+      window.history.replaceState(null, '', asset('/create'));
       useStudio.getState().loadProject(id).catch(() => setLoadError("We couldn't open that saved map. It may have been deleted, or saved from a different browser."));
     }
   }, []);
@@ -50,6 +52,7 @@ export function Studio() {
 
   return (
     <div className={`flex flex-col ${isEditor ? 'h-dvh' : 'min-h-dvh'}`}>
+      <DemoBanner />
       <header className="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:px-5">
           <div className="hidden sm:block"><Logo /></div>

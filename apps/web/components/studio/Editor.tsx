@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CATEGORY_META, type Design, type IconId, type Landmark } from '@maploom/core';
 import { STYLES, artSize } from '@maploom/render';
+import { asset } from './api';
 import { MapCanvas } from './MapCanvas';
 import { STYLE_ORDER, useStudio } from './store';
 import { Field, IconPicker, MapIcon, Notice, Range, Toggle } from './ui';
@@ -299,7 +300,7 @@ function LookPanel() {
       <div className="grid grid-cols-3 gap-2">
         {STYLE_ORDER.map((id) => (
           <button key={id} aria-pressed={design.styleId === id} data-testid={`quick-style-${id}`} onClick={() => edit((d) => void (d.styleId = id))} className={`overflow-hidden rounded-xl border-2 text-left ${design.styleId === id ? 'border-ink' : 'border-line'}`}>
-            <img src={`/styles/${id}.svg`} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+            <img src={asset(`/styles/${id}.svg`)} alt="" loading="lazy" className="aspect-square w-full object-cover" />
             <span className="block truncate px-1.5 py-1 text-[12px] font-extrabold">{STYLES[id].name}</span>
           </button>
         ))}

@@ -1,7 +1,7 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/.next/**', '.data/**', 'test-results/**', 'apps/web/public/**', 'apps/web/next-env.d.ts'] },
+  { ignores: ['**/node_modules/**', '**/.next/**', '.data/**', 'test-results/**', 'apps/web/public/**', 'apps/web/out/**', 'apps/web/next-env.d.ts'] },
   ...tseslint.configs.recommended,
   {
     rules: {

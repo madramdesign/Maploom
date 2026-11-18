@@ -10,3 +10,4 @@ playwright-report
 apps/web/public/fonts
 .DS_Store
 apps/web/public/vendor
+apps/web/out
