@@ -12,6 +12,9 @@ import {
 } from '@maploom/core';
 import { rankLandmarks, type RankedPoi } from '@maploom/geo';
 
+/** Share of the artwork height the title block occupies (generous, covers every style). */
+export const TITLE_KEEP_OUT = 0.19;
+
 export function landmarkFromRanked(r: RankedPoi, visible = r.selected): Landmark {
   const meta = CATEGORY_META[r.poi.category];
   return {
@@ -35,8 +38,16 @@ export function landmarkFromRanked(r: RankedPoi, visible = r.selected): Landmark
  * customer can switch any of them on), with the automatic selection visible.
  * Custom places and manual overrides from `previous` are preserved.
  */
-export function suggestLandmarks(geo: Geography, preferences: Partial<Record<CategoryGroupId, boolean>>, target: number, previous: Landmark[] = []): Landmark[] {
-  const ranked = rankLandmarks(geo, { preferences, target });
+export function suggestLandmarks(
+  geo: Geography,
+  preferences: Partial<Record<CategoryGroupId, boolean>>,
+  target: number,
+  previous: Landmark[] = [],
+  title?: { show: boolean; position: 'top' | 'bottom' },
+): Landmark[] {
+  // Don't auto-place landmarks where the title block will sit.
+  const keepOut = title?.show ? { [title.position]: TITLE_KEEP_OUT } : undefined;
+  const ranked = rankLandmarks(geo, { preferences, target, keepOut });
   const prev = new Map(previous.map((l) => [l.id, l]));
   const auto = ranked.slice(0, 90).map((r) => {
     const fresh = landmarkFromRanked(r);

@@ -34,6 +34,8 @@ export interface RankOptions {
   preferences?: Partial<Record<CategoryGroupId, boolean>>;
   /** How many landmarks to select. Defaults to a density-based count. */
   target?: number;
+  /** Fractions of the frame height (from the top / bottom edge) kept free, e.g. for a title block. */
+  keepOut?: { top?: number; bottom?: number };
 }
 
 /** A sensible number of landmarks for a frame: enough to feel rich, never cluttered. */
@@ -111,6 +113,8 @@ export function rankLandmarks(geo: Pick<Geography, 'frame' | 'pois'>, opts: Rank
     const [x, y] = r.poi.pos;
     if (Math.abs(x) > frame.widthM / 2 - insetX || Math.abs(y) > frame.heightM / 2 - insetY) continue;
     if (Math.hypot(x, y) < homeClear) continue; // keep the home marker clear
+    const fy = (y + frame.heightM / 2) / frame.heightM;
+    if (fy < (opts.keepOut?.top ?? 0) || fy > 1 - (opts.keepOut?.bottom ?? 0)) continue; // under the title block
     if ((perCategory.get(r.poi.category) ?? 0) >= perCategoryCap) continue;
     if (chosen.some((c) => Math.hypot(c.poi.pos[0] - x, c.poi.pos[1] - y) < minSpacing)) continue;
     r.selected = true;

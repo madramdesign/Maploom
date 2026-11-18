@@ -1,4 +1,8 @@
-import opentype from 'opentype.js';
+import * as opentypeNs from 'opentype.js';
+import type opentype from 'opentype.js';
+
+// opentype.js ships CJS (default export under Node) and ESM (named exports under bundlers).
+const parse: typeof opentypeNs.parse = (opentypeNs as unknown as { default?: typeof opentypeNs }).default?.parse ?? opentypeNs.parse;
 
 /**
  * Text is always converted to vector outlines. That makes artwork independent
@@ -111,7 +115,7 @@ export class Typeface {
 export type FontBook = Record<FontKey, Typeface>;
 
 export function parseFont(key: FontKey, data: ArrayBuffer): Typeface {
-  return new Typeface(key, opentype.parse(data));
+  return new Typeface(key, parse(data));
 }
 
 /** Browser loader: fonts are served as static files (copied by scripts/copy-fonts.mjs). */

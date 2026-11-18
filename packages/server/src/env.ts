@@ -12,6 +12,8 @@ const schema = z.object({
   MAPLOOM_TILEJSON_URL: z.string().url().default('https://tiles.openfreemap.org/planet'),
   MAPLOOM_PHOTON_URL: z.string().url().default('https://photon.komoot.io'),
   MAPLOOM_NOMINATIM_URL: z.string().url().default('https://nominatim.openstreetmap.org'),
+  /** Directory of z-x-y.pbf tiles + manifest.json: serve map data from disk (offline demo / e2e). */
+  MAPLOOM_FIXTURE_TILES: z.string().optional(),
   MAPLOOM_USER_AGENT: z.string().min(3).default('maploom-dev/0.1'),
   MAPLOOM_MAX_EXPORT_MP: z.coerce.number().min(1).max(400).default(320),
   MAPLOOM_INLINE_WORKER: z.enum(['0', '1']).default('1'),

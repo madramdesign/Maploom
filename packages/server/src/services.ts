@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { AppError, type Frame, type Geography } from '@maploom/core';
 import { buildGeographyFromTiles, cachedGeocoder, createOsmGeocoder, openTileSource, type GeocodeProvider, type TileSource } from '@maploom/geo';
 import { getDb } from './db';
@@ -47,6 +49,21 @@ export function getTileSource(): Promise<TileSource> {
   const hit = g.__maploomTiles;
   if (hit && Date.now() - hit.at < 3600_000) return hit.source;
   const e = env();
+  if (e.MAPLOOM_FIXTURE_TILES) {
+    // Offline mode: real OpenStreetMap tiles previously saved to disk (see scripts/refresh-fixtures.ts).
+    const dir = resolve(process.env.MAPLOOM_ROOT ?? process.cwd(), e.MAPLOOM_FIXTURE_TILES);
+    const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8')) as { info: TileSource['info'] };
+    const fixture: TileSource = {
+      info: manifest.info,
+      fetchTile: async (z, x, y) => {
+        const file = join(dir, `${z}-${x}-${y}.pbf`);
+        return existsSync(file) ? new Uint8Array(readFileSync(file)) : null;
+      },
+    };
+    const p = Promise.resolve(fixture);
+    g.__maploomTiles = { at: Date.now(), source: p };
+    return p;
+  }
   const source = openTileSource({ fetch: countingFetch('tiles') as never, tileJsonUrl: e.MAPLOOM_TILEJSON_URL, userAgent: e.MAPLOOM_USER_AGENT, cache: tileCache });
   g.__maploomTiles = { at: Date.now(), source };
   source.catch(() => {

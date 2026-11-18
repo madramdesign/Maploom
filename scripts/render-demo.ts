@@ -19,7 +19,7 @@ for (const styleId of STYLE_IDS) {
   design.title.dedication = 'With love from Grandma & Grandpa';
   design.title.date = '2026';
   if (styleId === 'minimal' || styleId === 'poster' || styleId === 'blueprint') design.title.position = 'bottom';
-  design.landmarks = suggestLandmarks(geo, design.preferences, design.landmarkTarget);
+  design.landmarks = suggestLandmarks(geo, design.preferences, design.landmarkTarget, [], design.title);
   const t = Date.now();
   const { svg } = renderMap(geo, design, fonts, { pixelWidth: 1200 });
   writeFileSync(join(out, `${styleId}.svg`), svg);
