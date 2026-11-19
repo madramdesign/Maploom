@@ -1,5 +1,5 @@
 import { CATEGORY_META, hash32, prng, type Design, type Geography, type IconId, type Landmark, type Pt, type Road, type RoadClass } from '@maploom/core';
-import { LocalProjection, lineLength, pointAlong, pointInPoly, bboxOf } from '@maploom/geo';
+import { LocalProjection, lineLength, pointAlong, pointInPoly, bboxOf, ringArea, ringCentroid } from '@maploom/geo';
 import type { FontBook, Typeface } from './fonts';
 import { iconMarkup, type IconPaint } from './icons';
 import { getStyle, type MapStyle } from './styles';
@@ -68,6 +68,8 @@ function makeCtx(geo: Geography, design: Design, fonts: Partial<FontBook>): Ctx 
 
 const ROAD_RANK: Record<RoadClass, number> = { path: 0, service: 1, rail: 2, minor: 3, tertiary: 4, secondary: 5, primary: 6, trunk: 7, motorway: 8 };
 const MAJOR = new Set<RoadClass>(['motorway', 'trunk', 'primary', 'secondary']);
+/** Buildings smaller than this become storybook houses in styles that use them. */
+const HOUSE_MAX_M2 = 700;
 const AREA_ORDER = ['residential', 'commercial', 'industrial', 'farmland', 'school', 'hospital', 'cemetery', 'sand', 'grass', 'park', 'wood', 'wetland', 'pitch', 'playground', 'water'] as const;
 
 /* ------------------------------------------------------------------ base */
@@ -81,6 +83,74 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
   const defs: string[] = [];
 
   out.push(`<rect width="${W}" height="${H}" fill="${col.land}"/>`);
+  // Storybook styles get chunkier trees.
+  const treeSize = Math.max(5.5, 10.5 * Math.min(1.1, k)) * (style.effects.houses ? 1.55 : 1);
+  let treeDefs = false;
+
+  // Play-rug generalisation: keep main streets, longer side streets and the street nearest home.
+  let keep: Set<string> | null = null;
+  if (style.effects.fewerRoads) {
+    keep = new Set<string>();
+    const home = new LocalProjection(geo.frame.center).project(design.home.lngLat);
+    const minLen = Math.max(170, Math.min(geo.frame.widthM, geo.frame.heightM) * 0.24);
+    let nearest: { id: string; d: number } | null = null;
+    for (const r of geo.roads) {
+      if (r.cls === 'path' || r.cls === 'rail') {
+        keep.add(r.id);
+        continue;
+      }
+      if (r.cls === 'service') continue;
+      if (r.cls !== 'minor' || lineLength(r.pts) >= minLen) keep.add(r.id);
+      for (const p of r.pts) {
+        const d = Math.hypot(p[0] - home[0], p[1] - home[1]);
+        if (!nearest || d < nearest.d) nearest = { id: r.id, d };
+      }
+    }
+    if (nearest) keep.add(nearest.id);
+  }
+
+  // --- flowers on open ground (pure decoration; everything drawn later covers them) ---
+  if (L.decorations && style.effects.flowers) {
+    const r = prng(hash32(`flowers${geo.key}`));
+    const petals = ['#FFFFFF', '#FFE066', '#FF8FB1'];
+    const groups: string[][] = [[], [], []];
+    const tufts: string[] = [];
+    const looseTrees: { x: number; y: number; v: number }[] = [];
+    // Coarse map of where streets run, so decorative trees never sit half under a road.
+    const cell = 17;
+    const busy = new Set<string>();
+    for (const rd of geo.roads) {
+      if (rd.cls === 'path' || (keep && !keep.has(rd.id))) continue;
+      const pts = rd.pts.map(c.toArt);
+      for (let i = 1; i < pts.length; i++) {
+        const steps = Math.max(1, Math.ceil(Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) / (cell / 2)));
+        for (let t = 0; t <= steps; t++) busy.add(`${Math.floor((pts[i - 1][0] + ((pts[i][0] - pts[i - 1][0]) * t) / steps) / cell)},${Math.floor((pts[i - 1][1] + ((pts[i][1] - pts[i - 1][1]) * t) / steps) / cell)}`);
+      }
+    }
+    const nearRoad = (x: number, y: number) => {
+      const cx = Math.floor(x / cell);
+      const cy = Math.floor(y / cell);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (busy.has(`${cx + dx},${cy + dy}`)) return true;
+      return false;
+    };
+    const step = 62;
+    for (let y = step / 2; y < H; y += step)
+      for (let x = step / 2; x < W; x += step) {
+        const px = x + (r() - 0.5) * step * 0.9;
+        const py = y + (r() - 0.5) * step * 0.9;
+        const kind = r();
+        if (kind < 0.45) groups[Math.floor(r() * 3)].push(`M${n(px - 3)} ${n(py)}a3 3 0 1 0 6 0a3 3 0 1 0 -6 0`);
+        else if (kind < 0.72) tufts.push(`M${n(px - 3)} ${n(py)}l1.5 -4 1.5 4 1.5 -5 1.5 5`);
+        else if (style.effects.trees && L.parks && kind > 0.72 && !nearRoad(px, py)) looseTrees.push({ x: px, y: py, v: Math.floor(r() * col.tree.length) });
+      }
+    out.push(`<path d="${tufts.join('')}" fill="none" stroke="${shade(col.land, -0.28)}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`);
+    groups.forEach((g, i) => g.length && out.push(`<path d="${g.join('')}" fill="${petals[i]}" stroke="${shade(col.land, -0.35)}" stroke-width=".7"/>`));
+    if (looseTrees.length) {
+      defs.push(treeSymbols(style, treeSize));
+      treeDefs = true;
+      out.push(`<g data-kind="trees">${looseTrees.map((t) => `<use href="#tree${t.v}" x="${n(t.x)}" y="${n(t.y)}"/>`).join('')}</g>`);
+    }
+  }
 
   // --- areas (land use, parks, water) ---
   const areasByKind = new Map<string, typeof geo.areas>();
@@ -141,8 +211,8 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
       if (waves.length) out.push(`<path d="${waves.join('')}" fill="none" stroke="${col.waterDetail}" stroke-width="1.6" stroke-linecap="round" stroke-opacity=".75"/>`);
     }
     if (style.effects.trees && L.parks) {
-      const size = Math.max(5.5, 10.5 * Math.min(1.1, k));
-      defs.push(treeSymbols(style, size));
+      const size = treeSize;
+      if (!treeDefs) defs.push(treeSymbols(style, size));
       const trees: { x: number; y: number; v: number }[] = [];
       for (const kind of ['park', 'wood'] as const)
         for (const a of areasByKind.get(kind) ?? []) scatter(a.id, toArtPolys(a.id, a.polys), kind === 'wood' ? size * 2.4 : size * 4.6, kind === 'wood' ? 500 : 140, (x, y, r) => trees.push({ x, y, v: Math.floor(r * col.tree.length) }));
@@ -154,7 +224,7 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
   // --- buildings ---
   if (L.buildings && geo.buildings.length) {
     const sw = style.strokes.building * Math.max(0.55, k);
-    const visible = geo.buildings.filter((b) => !c.hidden.has(b.id));
+    const visible = geo.buildings.filter((b) => !c.hidden.has(b.id) && !(style.effects.houses && Math.abs(ringArea(b.ring)) < HOUSE_MAX_M2));
     const paths = visible.map((b) => ({ b, d: `${linePath(b.ring.map(c.toArt))}Z` }));
     if (col.buildingShadow) out.push(`<path d="${paths.map((p) => p.d).join('')}" fill="${col.buildingShadow}" transform="translate(${n(1.6 * k)} ${n(1.6 * k)})"/>`);
     const stroke = col.buildingStroke && sw > 0 ? ` stroke="${col.buildingStroke}" stroke-width="${n(sw)}" stroke-linejoin="${style.effects.buildingRadius ? 'round' : 'miter'}"` : '';
@@ -171,7 +241,9 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
     if (r.cls === 'minor' || r.cls === 'service') return L.minorRoads;
     return true;
   };
-  const roads = geo.roads.filter(roadVisible).sort((a, b) => ROAD_RANK[a.cls] - ROAD_RANK[b.cls] || (a.id < b.id ? -1 : 1));
+  const roads = geo.roads
+    .filter((r) => roadVisible(r) && (!keep || keep.has(r.id)))
+    .sort((a, b) => ROAD_RANK[a.cls] - ROAD_RANK[b.cls] || (a.id < b.id ? -1 : 1));
   const artRoads = roads.map((r) => ({ r, pts: r.pts.map(c.toArt), w: Math.max(0.5, style.roads.width[r.cls] * k) }));
   const cap = 'stroke-linecap="round" stroke-linejoin="round" fill="none"';
 
@@ -202,8 +274,61 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
     for (const { pts, w } of lines) out.push(`<path d="${linePath(pts)}" fill="none" stroke="${col.centerLine}" stroke-width="${n(Math.max(0.9, w * 0.085))}" stroke-dasharray="${n(w * 0.5)} ${n(w * 0.55)}" stroke-opacity=".9"/>`);
   }
 
+  const occupied: Box[] = [];
+
+  // --- toy cars (decoration, seeded per road) ---
+  if (L.decorations && style.effects.cars) {
+    const paints = ['#FF5A5F', '#FFD166', '#4DABF7', '#FFFFFF', '#51CF66', '#FF922B'];
+    defs.push(paints.map((fill, i) => `<symbol id="car${i}" overflow="visible"><rect x="-7" y="-3.6" width="14" height="7.2" rx="2.8" fill="${fill}" stroke="${col.ink}" stroke-width="1.1"/><rect x="-2.6" y="-2.7" width="6" height="5.4" rx="1.4" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/><circle cx="6" cy="-2.1" r=".9" fill="#FFF3B0"/><circle cx="6" cy="2.1" r=".9" fill="#FFF3B0"/></symbol>`).join(''));
+    const cars: string[] = [];
+    for (const { r, pts, w } of drivable) {
+      if (cars.length >= 36 || w < 12 || r.cls === 'service') continue;
+      const len = lineLength(pts);
+      if (len < 140) continue;
+      const rnd = prng(hash32(`car${r.id}`));
+      if (rnd() > (MAJOR.has(r.cls) ? 0.9 : 0.45)) continue;
+      const at = pointAlong(pts, len * (0.25 + rnd() * 0.5));
+      const forward = rnd() > 0.5;
+      const side = (forward ? 1 : -1) * w * 0.23;
+      const x = at.p[0] - Math.sin(at.angle) * side;
+      const y = at.p[1] + Math.cos(at.angle) * side;
+      if (x < 40 || y < 40 || x > W - 40 || y > H - 40) continue;
+      const sc = Math.min(1.9, w / 10);
+      cars.push(`<use href="#car${Math.floor(rnd() * paints.length)}" transform="translate(${n(x)} ${n(y)}) rotate(${n((at.angle * 180) / Math.PI + (forward ? 0 : 180))}) scale(${sc.toFixed(2)})"/>`);
+      occupied.push([x - 9 * sc, y - 9 * sc, x + 9 * sc, y + 9 * sc]);
+    }
+    if (cars.length) out.push(`<g data-kind="cars" style="pointer-events:none">${cars.join('')}</g>`);
+  }
+
+  // --- storybook houses: small buildings drawn as little houses at their real positions ---
+  if (L.buildings && style.effects.houses) {
+    const roofs = ['#E5533D', '#8D5A3B', '#3F6FB5', '#D9822B', '#7A4FB3'];
+    const sw = 1.3;
+    defs.push(
+      col.buildings
+        .flatMap((body, i) => roofs.map((roof, j) => `<symbol id="house${i}_${j}" overflow="visible"><rect x="-8" y="-11" width="16" height="11" fill="${body}" stroke="${col.ink}" stroke-width="${sw}" stroke-linejoin="round"/><path d="M-10.500 -10.500 0 -19.500 10.500 -10.500Z" fill="${roof}" stroke="${col.ink}" stroke-width="${sw}" stroke-linejoin="round"/><rect x="-2" y="-6.500" width="4" height="6.500" fill="${shade(roof, -0.25)}" stroke="${col.ink}" stroke-width=".9"/><rect x="3.400" y="-8.300" width="3" height="3" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/><rect x="-6.400" y="-8.300" width="3" height="3" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/></symbol>`))
+        .join(''),
+    );
+    const collider = new Collider();
+    const houses = geo.buildings
+      .filter((b) => !c.hidden.has(b.id) && Math.abs(ringArea(b.ring)) < HOUSE_MAX_M2)
+      .map((b) => ({ b, p: c.toArt(ringCentroid(b.ring)), area: Math.abs(ringArea(b.ring)) }))
+      .sort((a, b) => b.area - a.area || (a.b.id < b.b.id ? -1 : 1));
+    const placed: { id: string; x: number; y: number; f: number; h: number }[] = [];
+    for (const hs of houses) {
+      const size = Math.max(15, Math.min(27, Math.sqrt(hs.area) * c.s * 1.9));
+      const f = size / 20;
+      const box: Box = [hs.p[0] - 10 * f, hs.p[1] - 10 * f, hs.p[0] + 10 * f, hs.p[1] + 10 * f];
+      if (collider.hits(box, -1.5)) continue; // crowded block: keep the picture tidy
+      collider.add(box);
+      placed.push({ id: hs.b.id, x: hs.p[0], y: hs.p[1] + 9 * f, f, h: hash32(hs.b.id) });
+    }
+    placed.sort((a, b) => a.y - b.y || (a.id < b.id ? -1 : 1));
+    out.push(`<g data-kind="houses">${placed.map((h) => `<use data-id="${h.id}" data-kind="building" href="#house${h.h % col.buildings.length}_${(h.h >>> 8) % roofs.length}" transform="translate(${n(h.x)} ${n(h.y)}) scale(${h.f.toFixed(2)})"/>`).join('')}</g>`);
+  }
+
   // --- street names, set along the streets ---
-  if (L.roadLabels) out.push(roadLabels(c, artRoads, defs));
+  if (L.roadLabels) out.push(roadLabels(c, artRoads, defs, occupied));
 
   if (style.effects.grain) {
     const r = prng(hash32(`grain${geo.key}`));
@@ -251,11 +376,12 @@ function treeSymbols(style: MapStyle, size: number): string {
     .join('');
 }
 
-function roadLabels(c: Ctx, artRoads: { r: Road; pts: Pt[]; w: number }[], defs: string[]): string {
+function roadLabels(c: Ctx, artRoads: { r: Road; pts: Pt[]; w: number }[], defs: string[], occupied: Box[] = []): string {
   const { style, W, H, label } = c;
   const size = style.fonts.labelSize * Math.max(0.8, Math.min(1.12, c.k));
   const tracking = style.fonts.labelTracking;
   const collider = new Collider();
+  occupied.forEach((b) => collider.add(b));
   const placedByName = new Map<string, Pt[]>();
   const glyphIds = new Map<string, string>();
   const uses: string[] = [];
@@ -402,6 +528,89 @@ function iconAt(icon: IconId, paint: IconPaint, r: number): string {
   return `<g transform="translate(${n(-size / 2)} ${n(-size / 2)}) scale(${sc.toFixed(4)})">${iconMarkup(icon, paint)}</g>`;
 }
 
+type BuildingKind = 'storefront' | 'civic' | 'block' | 'nature';
+const BUILDING_KIND: Partial<Record<Landmark['category'], BuildingKind>> = {
+  restaurant: 'storefront', cafe: 'storefront', bakery: 'storefront', ice_cream: 'storefront', pizza: 'storefront', grocery: 'storefront',
+  shop: 'storefront', mall: 'storefront', market: 'storefront', bar: 'storefront', cinema: 'storefront', theatre: 'storefront', hotel: 'storefront',
+  museum: 'civic', library: 'civic', government: 'civic', post_office: 'civic', historic: 'civic', community: 'civic',
+  school: 'block', daycare: 'block', hospital: 'block', police: 'block', fire_station: 'block', gym: 'block', train: 'block', bus: 'block', airport: 'block',
+};
+
+/**
+ * A landmark drawn as a large storybook building with a signboard. Three
+ * original templates (storefront, civic, block) are varied by colour and by
+ * the category emblem; outdoor places are shown as a large emblem instead.
+ * Drawn in a local box: x in [-halfW, halfW], ground at y = 0, up is negative.
+ */
+function landmarkBuilding(l: Landmark, style: MapStyle, sign: Typeface, showSign: boolean): { markup: string; halfW: number; top: number; bottom: number } {
+  const col = style.colors;
+  const { paint, main } = iconPaint(style, l.id, l.icon, l.color);
+  const ink = col.iconOutline;
+  const S = `stroke="${ink}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"`;
+  const glass = '#D6F1FF';
+  const emblem = (x: number, y: number, r: number) => `<g transform="translate(${x} ${y})">${iconAt(l.icon, paint, r)}</g>`;
+  const kind = BUILDING_KIND[l.category] ?? 'nature';
+  const g: string[] = [];
+  let halfW = 38;
+  let top = -64;
+
+  if (kind === 'storefront') {
+    const wall = shade(main, 0.62);
+    g.push(`<rect x="-34" y="-44" width="68" height="44" fill="${wall}" ${S}/>`);
+    g.push(`<rect x="-24" y="-64" width="48" height="21" rx="4" fill="#FFFFFF" ${S}/>${emblem(0, -53.500, 11)}`);
+    // striped, scalloped awning
+    for (let i = 0; i < 6; i++) {
+      const x = -36 + i * 12;
+      g.push(`<path d="M${x} -44h12v9a6 6 0 0 1 -12 0z" fill="${i % 2 ? '#FFFFFF' : main}" ${S}/>`);
+    }
+    g.push(`<rect x="-29" y="-25" width="17" height="15" rx="1.500" fill="${glass}" ${S}/><rect x="12" y="-25" width="17" height="15" rx="1.500" fill="${glass}" ${S}/>`);
+    g.push(`<rect x="-7" y="-23" width="14" height="23" rx="1.500" fill="${paint.accent}" ${S}/><circle cx="3.500" cy="-11" r="1.300" fill="${ink}"/>`);
+  } else if (kind === 'civic') {
+    const stone = '#F6ECD6';
+    g.push(`<rect x="-34" y="-40" width="68" height="34" fill="${stone}" ${S}/>`);
+    for (const x of [-27, -13, 7, 21]) g.push(`<rect x="${x}" y="-38" width="6" height="32" fill="#FFFFFF" ${S}/>`);
+    g.push(`<rect x="-5" y="-24" width="10" height="18" rx="5" fill="${paint.accent}" ${S}/>`);
+    g.push(`<path d="M-40 -40 0 -66 40 -40Z" fill="${main}" ${S}/>`);
+    g.push(`<circle cx="0" cy="-49" r="9.500" fill="#FFFFFF" ${S}/>${emblem(0, -49, 8)}`);
+    g.push(`<rect x="-40" y="-6" width="80" height="6" fill="${shade(stone, -0.12)}" ${S}/>`);
+    halfW = 41;
+    top = -67;
+  } else if (kind === 'block') {
+    const wall = shade(main, 0.55);
+    g.push(`<rect x="-31" y="-56" width="62" height="56" fill="${wall}" ${S}/>`);
+    g.push(`<rect x="-35" y="-62" width="70" height="9" rx="2" fill="${main}" ${S}/>`);
+    for (const y of [-46, -30]) for (const x of [-25, -7, 11]) g.push(`<rect x="${x}" y="${y}" width="13" height="11" rx="1.500" fill="${glass}" ${S}/>`);
+    g.push(`<rect x="-8" y="-15" width="16" height="15" fill="${paint.accent}" ${S}/><path d="M0 -15V0" fill="none" ${S}/>`);
+    g.push(`<circle cx="0" cy="-62" r="12" fill="#FFFFFF" ${S}/>${emblem(0, -62, 10)}`);
+    halfW = 36;
+    top = -75;
+  } else {
+    g.push(emblem(0, -30, 40));
+    halfW = 30;
+    top = -59;
+  }
+
+  let bottom = 1;
+  const text = l.label.trim().toUpperCase();
+  if (showSign && text) {
+    const size = 11.5;
+    const tracking = 0.03;
+    const lines = wrap(sign, text, size, tracking, 104);
+    const widths = lines.map((t) => sign.width(t, size, tracking));
+    const fit = Math.min(1, 118 / Math.max(...widths));
+    const fs = size * fit;
+    const lh = fs * 1.2;
+    const bw = Math.max(...widths) * fit + 14;
+    const bh = lh * lines.length + 7;
+    const y0 = 4;
+    g.push(`<rect x="${n(-bw / 2)}" y="${y0}" width="${n(bw)}" height="${n(bh)}" rx="5" fill="#FFFFFF" ${S}/>`);
+    lines.forEach((t, i) => g.push(`<path d="${sign.path(t, (-widths[i] * fit) / 2, y0 + 3.5 + lh * i + fs * 0.82, fs, tracking)}" fill="${ink}"/>`));
+    bottom = y0 + bh + 1;
+    halfW = Math.max(halfW, bw / 2 + 1);
+  }
+  return { markup: g.join(''), halfW, top, bottom };
+}
+
 export function renderOverlayLayer(geo: Geography, design: Design, fonts: Partial<FontBook>): { markup: string; items: RenderItem[] } {
   const c = makeCtx(geo, design, fonts);
   const { style, W, H, label, display } = c;
@@ -418,6 +627,8 @@ export function renderOverlayLayer(geo: Geography, design: Design, fonts: Partia
     return c.toArt([m[0] + dx, m[1] + dy]);
   };
 
+  const asBuilding = (l: Landmark) => style.badge === 'building' && l.source !== 'custom' && l.category !== 'other';
+
   // Reserve the home badge and every icon first so no label lands on an icon.
   const homeR = 31 * design.home.scale;
   const homePos = anchor(design.home.lngLat, design.home.dx, design.home.dy);
@@ -425,7 +636,7 @@ export function renderOverlayLayer(geo: Geography, design: Design, fonts: Partia
 
   const marks = design.landmarks
     .filter((l) => l.visible)
-    .map((l) => ({ l, pos: anchor(l.lngLat, l.dx, l.dy), r: 20 * l.scale }))
+    .map((l) => ({ l, pos: anchor(l.lngLat, l.dx, l.dy), r: (asBuilding(l) ? 36 : 20) * l.scale }))
     .filter((m) => m.pos[0] > -20 && m.pos[1] > -20 && m.pos[0] < W + 20 && m.pos[1] < H + 20)
     .sort((a, b) => a.pos[1] - b.pos[1] || (a.l.id < b.l.id ? -1 : 1));
   for (const m of marks) collider.add([m.pos[0] - m.r, m.pos[1] - m.r, m.pos[0] + m.r, m.pos[1] + m.r]);
@@ -436,6 +647,16 @@ export function renderOverlayLayer(geo: Geography, design: Design, fonts: Partia
 
   const drawLandmark = (m: { l: Landmark; pos: Pt; r: number }) => {
     const { l, pos, r } = m;
+    if (asBuilding(l)) {
+      const built = landmarkBuilding(l, style, display, design.layers.landmarkLabels);
+      const sc = l.scale;
+      const oy = 22 * sc; // the building stands on its position rather than being centred on it
+      out.push(`<g data-id="${l.id}" data-kind="landmark" transform="translate(${n(pos[0])} ${n(pos[1] + oy)}) scale(${sc.toFixed(3)})">${built.markup}</g>`);
+      const b: Box = [pos[0] - built.halfW * sc, pos[1] + oy + built.top * sc, pos[0] + built.halfW * sc, pos[1] + oy + built.bottom * sc];
+      collider.add(b);
+      items.push({ id: l.id, kind: 'landmark', box: b, x: pos[0], y: pos[1] });
+      return;
+    }
     const { paint, main } = iconPaint(style, l.id, l.icon, l.color);
     const g: string[] = [badge(style, r, main, false), iconAt(l.icon, paint, r)];
     let box: Box = [pos[0] - r, pos[1] - r, pos[0] + r, pos[1] + r];
