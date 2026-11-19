@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+*.tsbuildinfo
+.env
+.env.local
+.data
+test-results
+playwright-report
+apps/web/public/fonts
+.DS_Store
+apps/web/public/vendor
+apps/web/out
