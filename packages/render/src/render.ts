@@ -1,5 +1,5 @@
 import { CATEGORY_META, hash32, prng, type Design, type Geography, type IconId, type Landmark, type Pt, type Road, type RoadClass } from '@maploom/core';
-import { LocalProjection, lineLength, pointAlong, pointInPoly, bboxOf } from '@maploom/geo';
+import { LocalProjection, lineLength, pointAlong, pointInPoly, bboxOf, ringArea, ringCentroid } from '@maploom/geo';
 import type { FontBook, Typeface } from './fonts';
 import { iconMarkup, type IconPaint } from './icons';
 import { getStyle, type MapStyle } from './styles';
@@ -68,6 +68,8 @@ function makeCtx(geo: Geography, design: Design, fonts: Partial<FontBook>): Ctx 
 
 const ROAD_RANK: Record<RoadClass, number> = { path: 0, service: 1, rail: 2, minor: 3, tertiary: 4, secondary: 5, primary: 6, trunk: 7, motorway: 8 };
 const MAJOR = new Set<RoadClass>(['motorway', 'trunk', 'primary', 'secondary']);
+/** Buildings smaller than this become storybook houses in styles that use them. */
+const HOUSE_MAX_M2 = 700;
 const AREA_ORDER = ['residential', 'commercial', 'industrial', 'farmland', 'school', 'hospital', 'cemetery', 'sand', 'grass', 'park', 'wood', 'wetland', 'pitch', 'playground', 'water'] as const;
 
 /* ------------------------------------------------------------------ base */
@@ -81,6 +83,25 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
   const defs: string[] = [];
 
   out.push(`<rect width="${W}" height="${H}" fill="${col.land}"/>`);
+
+  // --- flowers on open ground (pure decoration; everything drawn later covers them) ---
+  if (L.decorations && style.effects.flowers) {
+    const r = prng(hash32(`flowers${geo.key}`));
+    const petals = ['#FFFFFF', '#FFE066', '#FF8FB1'];
+    const groups: string[][] = [[], [], []];
+    const tufts: string[] = [];
+    const step = 62;
+    for (let y = step / 2; y < H; y += step)
+      for (let x = step / 2; x < W; x += step) {
+        const px = x + (r() - 0.5) * step * 0.9;
+        const py = y + (r() - 0.5) * step * 0.9;
+        const kind = r();
+        if (kind < 0.45) groups[Math.floor(r() * 3)].push(`M${n(px - 3)} ${n(py)}a3 3 0 1 0 6 0a3 3 0 1 0 -6 0`);
+        else if (kind < 0.8) tufts.push(`M${n(px - 3)} ${n(py)}l1.5 -4 1.5 4 1.5 -5 1.5 5`);
+      }
+    out.push(`<path d="${tufts.join('')}" fill="none" stroke="${shade(col.land, -0.28)}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`);
+    groups.forEach((g, i) => g.length && out.push(`<path d="${g.join('')}" fill="${petals[i]}" stroke="${shade(col.land, -0.35)}" stroke-width=".7"/>`));
+  }
 
   // --- areas (land use, parks, water) ---
   const areasByKind = new Map<string, typeof geo.areas>();
@@ -154,7 +175,7 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
   // --- buildings ---
   if (L.buildings && geo.buildings.length) {
     const sw = style.strokes.building * Math.max(0.55, k);
-    const visible = geo.buildings.filter((b) => !c.hidden.has(b.id));
+    const visible = geo.buildings.filter((b) => !c.hidden.has(b.id) && !(style.effects.houses && Math.abs(ringArea(b.ring)) < HOUSE_MAX_M2));
     const paths = visible.map((b) => ({ b, d: `${linePath(b.ring.map(c.toArt))}Z` }));
     if (col.buildingShadow) out.push(`<path d="${paths.map((p) => p.d).join('')}" fill="${col.buildingShadow}" transform="translate(${n(1.6 * k)} ${n(1.6 * k)})"/>`);
     const stroke = col.buildingStroke && sw > 0 ? ` stroke="${col.buildingStroke}" stroke-width="${n(sw)}" stroke-linejoin="${style.effects.buildingRadius ? 'round' : 'miter'}"` : '';
@@ -202,8 +223,61 @@ export function renderBaseLayer(geo: Geography, design: Design, fonts: Partial<F
     for (const { pts, w } of lines) out.push(`<path d="${linePath(pts)}" fill="none" stroke="${col.centerLine}" stroke-width="${n(Math.max(0.9, w * 0.085))}" stroke-dasharray="${n(w * 0.5)} ${n(w * 0.55)}" stroke-opacity=".9"/>`);
   }
 
+  const occupied: Box[] = [];
+
+  // --- toy cars (decoration, seeded per road) ---
+  if (L.decorations && style.effects.cars) {
+    const paints = ['#FF5A5F', '#FFD166', '#4DABF7', '#FFFFFF', '#51CF66', '#FF922B'];
+    defs.push(paints.map((fill, i) => `<symbol id="car${i}" overflow="visible"><rect x="-7" y="-3.6" width="14" height="7.2" rx="2.8" fill="${fill}" stroke="${col.ink}" stroke-width="1.1"/><rect x="-2.6" y="-2.7" width="6" height="5.4" rx="1.4" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/><circle cx="6" cy="-2.1" r=".9" fill="#FFF3B0"/><circle cx="6" cy="2.1" r=".9" fill="#FFF3B0"/></symbol>`).join(''));
+    const cars: string[] = [];
+    for (const { r, pts, w } of drivable) {
+      if (cars.length >= 36 || w < 12 || r.cls === 'service') continue;
+      const len = lineLength(pts);
+      if (len < 140) continue;
+      const rnd = prng(hash32(`car${r.id}`));
+      if (rnd() > (MAJOR.has(r.cls) ? 0.9 : 0.45)) continue;
+      const at = pointAlong(pts, len * (0.25 + rnd() * 0.5));
+      const forward = rnd() > 0.5;
+      const side = (forward ? 1 : -1) * w * 0.23;
+      const x = at.p[0] - Math.sin(at.angle) * side;
+      const y = at.p[1] + Math.cos(at.angle) * side;
+      if (x < 40 || y < 40 || x > W - 40 || y > H - 40) continue;
+      const sc = Math.min(1.9, w / 10);
+      cars.push(`<use href="#car${Math.floor(rnd() * paints.length)}" transform="translate(${n(x)} ${n(y)}) rotate(${n((at.angle * 180) / Math.PI + (forward ? 0 : 180))}) scale(${sc.toFixed(2)})"/>`);
+      occupied.push([x - 9 * sc, y - 9 * sc, x + 9 * sc, y + 9 * sc]);
+    }
+    if (cars.length) out.push(`<g data-kind="cars" style="pointer-events:none">${cars.join('')}</g>`);
+  }
+
+  // --- storybook houses: small buildings drawn as little houses at their real positions ---
+  if (L.buildings && style.effects.houses) {
+    const roofs = ['#E5533D', '#8D5A3B', '#3F6FB5', '#D9822B', '#7A4FB3'];
+    const sw = 1.3;
+    defs.push(
+      col.buildings
+        .flatMap((body, i) => roofs.map((roof, j) => `<symbol id="house${i}_${j}" overflow="visible"><rect x="-8" y="-11" width="16" height="11" fill="${body}" stroke="${col.ink}" stroke-width="${sw}" stroke-linejoin="round"/><path d="M-10.500 -10.500 0 -19.500 10.500 -10.500Z" fill="${roof}" stroke="${col.ink}" stroke-width="${sw}" stroke-linejoin="round"/><rect x="-2" y="-6.500" width="4" height="6.500" fill="${shade(roof, -0.25)}" stroke="${col.ink}" stroke-width=".9"/><rect x="3.400" y="-8.300" width="3" height="3" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/><rect x="-6.400" y="-8.300" width="3" height="3" fill="#D6F1FF" stroke="${col.ink}" stroke-width=".8"/></symbol>`))
+        .join(''),
+    );
+    const collider = new Collider();
+    const houses = geo.buildings
+      .filter((b) => !c.hidden.has(b.id) && Math.abs(ringArea(b.ring)) < HOUSE_MAX_M2)
+      .map((b) => ({ b, p: c.toArt(ringCentroid(b.ring)), area: Math.abs(ringArea(b.ring)) }))
+      .sort((a, b) => b.area - a.area || (a.b.id < b.b.id ? -1 : 1));
+    const placed: { id: string; x: number; y: number; f: number; h: number }[] = [];
+    for (const hs of houses) {
+      const size = Math.max(15, Math.min(27, Math.sqrt(hs.area) * c.s * 1.9));
+      const f = size / 20;
+      const box: Box = [hs.p[0] - 10 * f, hs.p[1] - 10 * f, hs.p[0] + 10 * f, hs.p[1] + 10 * f];
+      if (collider.hits(box, -1.5)) continue; // crowded block: keep the picture tidy
+      collider.add(box);
+      placed.push({ id: hs.b.id, x: hs.p[0], y: hs.p[1] + 9 * f, f, h: hash32(hs.b.id) });
+    }
+    placed.sort((a, b) => a.y - b.y || (a.id < b.id ? -1 : 1));
+    out.push(`<g data-kind="houses">${placed.map((h) => `<use data-id="${h.id}" data-kind="building" href="#house${h.h % col.buildings.length}_${(h.h >>> 8) % roofs.length}" transform="translate(${n(h.x)} ${n(h.y)}) scale(${h.f.toFixed(2)})"/>`).join('')}</g>`);
+  }
+
   // --- street names, set along the streets ---
-  if (L.roadLabels) out.push(roadLabels(c, artRoads, defs));
+  if (L.roadLabels) out.push(roadLabels(c, artRoads, defs, occupied));
 
   if (style.effects.grain) {
     const r = prng(hash32(`grain${geo.key}`));
@@ -251,11 +325,12 @@ function treeSymbols(style: MapStyle, size: number): string {
     .join('');
 }
 
-function roadLabels(c: Ctx, artRoads: { r: Road; pts: Pt[]; w: number }[], defs: string[]): string {
+function roadLabels(c: Ctx, artRoads: { r: Road; pts: Pt[]; w: number }[], defs: string[], occupied: Box[] = []): string {
   const { style, W, H, label } = c;
   const size = style.fonts.labelSize * Math.max(0.8, Math.min(1.12, c.k));
   const tracking = style.fonts.labelTracking;
   const collider = new Collider();
+  occupied.forEach((b) => collider.add(b));
   const placedByName = new Map<string, Pt[]>();
   const glyphIds = new Map<string, string>();
   const uses: string[] = [];
