@@ -29,6 +29,10 @@ publishes it via `.github/workflows/pages.yml` (Pages must be enabled with sourc
 "GitHub Actions"). Verified locally from a `/Maploom` sub-path: search, area, generate,
 edit, preview, save (localStorage), PNG and SVG download, reopen.
 
+The same static demo can be hosted on Vercel: `vercel.json` builds it at the site root
+(import the repo in Vercel, keep the repository root as the project root). The full server
+app is not Vercel-compatible yet (local disk, embedded database, in-process jobs).
+
 Differences from the server app: the browser talks to public OSM services directly
 (the address a visitor types is sent to Photon/Nominatim — disclosed in the banner and on
 `/privacy`); saves are local to the browser; PNG export is canvas-based (2400 px / 6000 px),
