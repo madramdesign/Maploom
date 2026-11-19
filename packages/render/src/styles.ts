@@ -62,8 +62,11 @@ export interface MapStyle {
     cars: boolean;
     /** Decorative flowers sprinkled on open ground. */
     flowers: boolean;
+    /** Generalise the street network: main streets and longer side streets only. */
+    fewerRoads: boolean;
   };
-  badge: 'sticker' | 'disc' | 'ring';
+  /** 'building' draws landmarks as large illustrated buildings with signboards. */
+  badge: 'sticker' | 'disc' | 'ring' | 'building';
   iconMode: 'color' | 'mono';
   title: 'ribbon' | 'band' | 'plate';
   border: 'rounded' | 'double' | 'line' | 'none';
@@ -99,14 +102,14 @@ export const STYLES: Record<StyleId, MapStyle> = {
       buildings: ['#FF8A65', '#FFD166', '#6EC6FF', '#C792EA', '#FF7EB6', '#8BD3A8'],
       buildingStroke: '#2F3447',
       buildingShadow: null,
-      roadMajor: '#8A8F9E',
-      roadMinor: '#9A9FAD',
-      roadCasing: '#2F3447',
+      roadMajor: '#BDC1C9',
+      roadMinor: '#C6C9D0',
+      roadCasing: '#8A90A0',
       centerLine: '#FFFFFF',
       rail: '#2F3447',
       path: '#B08D57',
       roadLabel: '#FFFFFF',
-      roadLabelHalo: '#4A4F63',
+      roadLabelHalo: '#6E7486',
       label: '#2F3447',
       labelHalo: '#FFFDF5',
       tree: ['#2E9E4F', '#43B047', '#1F8A4C'],
@@ -122,10 +125,10 @@ export const STYLES: Record<StyleId, MapStyle> = {
       titleAccent: '#FF5A5F',
       border: '#2F3447',
     },
-    roads: { width: W(26, 22, 18, 14, 6.5, 2.8, 3), casing: 2.6, centerLineClasses: ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor'] },
+    roads: { width: W(32, 28, 24, 19, 8, 3, 3.2), casing: 1.8, centerLineClasses: ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor'] },
     strokes: { area: 2, building: 1.6, icon: 2.6 },
-    effects: { trees: true, waves: true, pitchLines: true, wash: false, grain: false, buildingRadius: true, houses: true, cars: true, flowers: true },
-    badge: 'sticker',
+    effects: { trees: true, waves: true, pitchLines: true, wash: false, grain: false, buildingRadius: true, houses: true, cars: true, flowers: true, fewerRoads: true },
+    badge: 'building',
     iconMode: 'color',
     title: 'ribbon',
     border: 'rounded',
@@ -172,7 +175,7 @@ export const STYLES: Record<StyleId, MapStyle> = {
     },
     roads: { width: W(9, 7, 5, 3, 1.4, 0.9, 1.1), casing: 0, centerLineClasses: [] },
     strokes: { area: 0, building: 0, icon: 2.4 },
-    effects: { trees: false, waves: false, pitchLines: false, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false },
+    effects: { trees: false, waves: false, pitchLines: false, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false, fewerRoads: false },
     badge: 'disc',
     iconMode: 'mono',
     title: 'band',
@@ -220,7 +223,7 @@ export const STYLES: Record<StyleId, MapStyle> = {
     },
     roads: { width: W(17, 14.5, 12, 9.5, 4.5, 2, 2.2), casing: 1.3, centerLineClasses: [] },
     strokes: { area: 0, building: 0.9, icon: 2.2 },
-    effects: { trees: true, waves: true, pitchLines: false, wash: true, grain: true, buildingRadius: false, houses: false, cars: false, flowers: false },
+    effects: { trees: true, waves: true, pitchLines: false, wash: true, grain: true, buildingRadius: false, houses: false, cars: false, flowers: false, fewerRoads: false },
     badge: 'sticker',
     iconMode: 'color',
     title: 'plate',
@@ -268,7 +271,7 @@ export const STYLES: Record<StyleId, MapStyle> = {
     },
     roads: { width: W(15, 13, 11, 8.5, 4, 1.8, 2.2), casing: 1.5, centerLineClasses: [] },
     strokes: { area: 0.9, building: 1, icon: 2.4 },
-    effects: { trees: true, waves: true, pitchLines: false, wash: false, grain: true, buildingRadius: false, houses: false, cars: false, flowers: false },
+    effects: { trees: true, waves: true, pitchLines: false, wash: false, grain: true, buildingRadius: false, houses: false, cars: false, flowers: false, fewerRoads: false },
     badge: 'ring',
     iconMode: 'color',
     title: 'plate',
@@ -316,7 +319,7 @@ export const STYLES: Record<StyleId, MapStyle> = {
     },
     roads: { width: W(12, 9.5, 7, 4, 1.8, 1, 1.4), casing: 0, centerLineClasses: [] },
     strokes: { area: 0, building: 0, icon: 2.6 },
-    effects: { trees: false, waves: false, pitchLines: true, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false },
+    effects: { trees: false, waves: false, pitchLines: true, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false, fewerRoads: false },
     badge: 'sticker',
     iconMode: 'color',
     title: 'band',
@@ -364,7 +367,7 @@ export const STYLES: Record<StyleId, MapStyle> = {
     },
     roads: { width: W(13, 11, 9, 7, 3.2, 1.2, 1.6), casing: 0.8, centerLineClasses: [] },
     strokes: { area: 0.6, building: 0.6, icon: 2 },
-    effects: { trees: true, waves: false, pitchLines: true, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false },
+    effects: { trees: true, waves: false, pitchLines: true, wash: false, grain: false, buildingRadius: false, houses: false, cars: false, flowers: false, fewerRoads: false },
     badge: 'ring',
     iconMode: 'mono',
     title: 'band',

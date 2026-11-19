@@ -94,13 +94,17 @@ describe('geographic data → illustrated map', () => {
     const geom = (svg: string) => [...svg.matchAll(/data-kind="road" d="([^"]+)"/g)].map((m) => m[1]).sort();
     const a = geom(renderBaseLayer(geo, d, fonts));
     const b = geom(renderBaseLayer(geo, { ...d, styleId: 'vintage' }, fonts));
-    expect(a.length).toBeGreaterThan(100);
-    expect(b).toEqual(a);
+    // A style may generalise (show fewer roads) but must never alter the shape of a road it draws.
+    expect(b.length).toBeGreaterThan(100);
+    expect(a.length).toBeGreaterThan(20);
+    const all = new Set(b);
+    for (const d of a) expect(all.has(d)).toBe(true);
+    expect(geom(renderBaseLayer(geo, { ...d, styleId: 'minimal' }, fonts))).toEqual(b);
   });
 
   it('honours edits: hidden features, layer toggles, labels, custom places', async () => {
     const { geo, d } = await design();
-    const road = geo.roads.find((r) => r.name === 'Van Houten Avenue')!;
+    const road = geo.roads.filter((r) => r.name === 'Van Houten Avenue').sort((x, y) => y.pts.length - x.pts.length)[0];
     const base = renderBaseLayer(geo, d, fonts);
     expect(base).toContain(`data-id="${road.id}"`);
     expect(renderBaseLayer(geo, { ...d, hidden: [road.id] }, fonts)).not.toContain(`data-id="${road.id}"`);
